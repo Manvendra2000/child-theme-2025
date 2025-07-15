@@ -265,3 +265,78 @@ add_filter('acf/load_field/name=status', function($field) {
 add_action('login_enqueue_scripts', function () {
     wp_enqueue_style('custom-login-css', get_stylesheet_directory_uri() . '/style.css');
 });
+
+
+
+
+// testing review page for tester get_defined_functions
+
+// giving permissions
+add_action('init', function () {
+    $role = get_role('tester');
+    if ($role && !$role->has_cap('edit_posts')) {
+        $role->add_cap('edit_posts');
+        $role->add_cap('edit_published_posts');
+        $role->add_cap('edit_others_posts'); // allows editing tasks not authored by them
+    }
+});
+
+// show status stuff
+add_filter('the_content', function($content) {
+    if (is_page('testing-review') && current_user_can('tester')) {
+        $statuses = ['In-house', 'Worker', 'Testing', 'Done'];
+
+        ob_start();
+        echo '<h2>All Tasks by Status</h2>';
+
+        foreach ($statuses as $status) {
+            $args = [
+                'post_type' => 'task',
+                'post_status' => 'publish',
+                'posts_per_page' => -1,
+                'meta_query' => [
+                    [
+                        'key' => 'status',
+                        'value' => $status,
+                        'compare' => '='
+                    ]
+                ]
+            ];
+
+            $query = new WP_Query($args);
+
+            if ($query->have_posts()) {
+                echo "<h3>$status</h3><ul>";
+                while ($query->have_posts()) {
+                    $query->the_post();
+                    echo '<li><a href="' . get_permalink() . '">' . get_the_title() . '</a></li>';
+                }
+                echo '</ul>';
+            }
+            wp_reset_postdata();
+        }
+
+        return ob_get_clean();
+    }
+
+    return $content;
+    
+    add_filter('the_content', function($content) {
+    if (is_singular('task') && current_user_can('tester')) {
+        ob_start();
+
+        echo $content;
+
+        echo '<h3>Tester Update Status</h3>';
+        acf_form([
+            'post_id' => get_the_ID(),
+            'fields' => ['status'],
+            'submit_value' => 'Update Status',
+        ]);
+
+        return ob_get_clean();
+    }
+
+    return $content;
+});
+});
