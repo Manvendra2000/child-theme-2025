@@ -81,6 +81,7 @@ function show_manager_form_on_dashboard($content) {
                     'post_type' => 'task',
                     'post_status' => 'publish'
                 ],
+                // 'fields' => ['store_name'],
                 'submit_value' => 'Create Task'
             ]);
         } else {
@@ -340,3 +341,35 @@ add_filter('the_content', function($content) {
     return $content;
 });
 });
+
+add_shortcode('custom_logout', function() {
+    return '<a href="' . wp_logout_url(home_url()) . '">Logout</a>';
+});
+
+// force login
+// Force login for all visitors unless logged in
+add_action('template_redirect', function () {
+    if (
+        !is_user_logged_in() &&
+        !is_page('wp-login.php') &&
+        !is_admin() &&
+        !is_login_page() &&
+        !(defined('DOING_AJAX') && DOING_AJAX)
+    ) {
+        wp_redirect(wp_login_url($_SERVER['REQUEST_URI']));
+        exit;
+    }
+});
+
+// Block REST API access for unauthenticated users
+add_filter('rest_authentication_errors', function ($result) {
+    if (!is_user_logged_in()) {
+        return new WP_Error('rest_forbidden', 'REST API restricted to logged-in users.', ['status' => 401]);
+    }
+    return $result;
+});
+
+// Helper to detect login page
+function is_login_page() {
+    return in_array($GLOBALS['pagenow'], ['wp-login.php', 'wp-register.php']);
+}
