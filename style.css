@@ -1,0 +1,42 @@
+    /*
+    Theme Name:   Twenty Twenty-Five Child
+    Theme URI:    https://react-portfolio-blush-one.vercel.app/
+    Description:  Child theme for the Twenty Twenty-Five theme
+    Author:       Maxx
+    Author URI:   https://react-portfolio-blush-one.vercel.app/
+    Template:     twentytwentyfive
+    Version:      1.0.0
+    */
+    
+    body.login {
+        background-color: #f7f7f7;
+        background-image: url('https://deeppink-rook-298525.hostingersite.com/wp-content/uploads/2025/07/v960-ning-03-scaled.jpg'); 
+        background-size: cover;
+    }
+    
+    .login h1 a {
+        background-image: url('https://deeppink-rook-298525.hostingersite.com/wp-content/uploads/2025/07/logo-regular.webp') !important; 
+        background-size: contain;
+        width: 100%;
+        height: 100px;
+    }
+    
+    .login form {
+        background: #fff;
+        border: 1px solid #ddd;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        padding: 26px 24px;
+        border-radius: 8px;
+    }
+    
+    .login label {
+        font-weight: bold;
+    }
+    
+    .login #nav a, .login #backtoblog a {
+        color: #0073aa;
+    }
+    
+    .login #backtoblog, .login #nav {
+        display: none;    
+    }
