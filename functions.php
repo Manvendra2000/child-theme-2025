@@ -244,26 +244,48 @@ function show_worker_tasks_on_dashboard($content) {
             if ($query->have_posts()) {
             echo "<h3>$status</h3><ul style='padding-left:0;'>";
         
-            while ($query->have_posts()) {
-                $query->the_post();
-                $thumb = get_field('item_photo');
-                $thumb_url = $thumb ? esc_url($thumb['sizes']['thumbnail']) : '';
-                $ring_size = get_field('ring_size');
+          while ($query->have_posts()) {
+            $query->the_post();
+            $thumb = get_field('item_photo');
+            $thumb_url = $thumb ? esc_url($thumb['sizes']['medium']) : '';
+            $ring_size = get_field('ring_size');
+            $chain_size = get_field('chain_length');
+            $express = get_field('express');
+            $replacement = get_field('replacement');
+            $product_type = get_field('product_type');
         
-                echo '<li style="margin-bottom:15px; list-style:none; display:flex; align-items:center;">';
+            echo '<li style="margin-bottom:20px; list-style:none; display:flex; align-items:flex-start;">';
         
-                if ($thumb_url) {
-                    echo '<img src="' . $thumb_url . '" alt="" style="width:50px; height:50px; object-fit:cover; margin-right:10px; border-radius:4px;" />';
-                }
-        
-                echo '<div>';
-                echo '<a href="' . get_permalink() . '" style="text-decoration:none; color:#333; font-size:14px;">' . wp_trim_words(get_the_title(), 10, '...') . '</a>';
-                echo '<div style="font-size:12px; color:#888;">Ring Size: ' . esc_html($ring_size) . '</div>';
-                echo '</div>';
-        
-                echo '</li>';
+            if ($thumb_url) {
+                echo '<img src="' . $thumb_url . '" alt="" style="width:65px; height:65px; object-fit:cover; margin-right:15px; border-radius:6px;" />';
             }
         
+            echo '<div>';
+            echo '<a href="' . get_permalink() . '" style="text-decoration:none; color:#111; font-size:15px; font-weight:500;">' . wp_trim_words(get_the_title(), 10, '...') . '</a>';
+        
+            echo '<div style="font-size:13px; color:#555; margin-top:4px; display:flex; align-items:center; gap:10px;">';
+            // echo 'Ring Size: ' . esc_html($ring_size);
+            
+            if ($product_type === 'Ring' && $ring_size) {
+                echo 'Ring Size: ' . esc_html($ring_size);
+            } elseif ($product_type === 'Chain' && $chain_size) {
+                echo 'Chain Size: ' . esc_html($chain_size);
+            }
+        
+        
+            if ($express) {
+                echo '<img src="https://deeppink-rook-298525.hostingersite.com/wp-content/uploads/2025/07/express-delivery.png" title="Express Delivery" style="height:15px; vertical-align:middle;" />';
+            }
+        
+            if ($replacement) {
+                echo '<img src="https://deeppink-rook-298525.hostingersite.com/wp-content/uploads/2025/07/exchange.png" title="Replacement" style="height:15px; vertical-align:middle;" />';
+            }
+        
+            echo '</div>'; // end subinfo
+            echo '</div>'; // end text block
+        
+            echo '</li>';
+        }
             echo '</ul>';
         }
             wp_reset_postdata();
@@ -292,8 +314,21 @@ function show_task_details_page($content) {
 
         $image = get_field('item_photo');
         if ($image) {
-            echo '<img src="' . esc_url($image['url']) . '" alt="" style="max-width:150px;margin-bottom:15px;" />';
+            echo '<img src="' . esc_url($image['url']) . '" alt="" style="max-width:150px; margin-bottom:15px; cursor:pointer;" onclick="openLightbox(this.src)" />';
         }
+        echo '
+        <div id="lightbox" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background-color:rgba(0,0,0,0.8); z-index:9999; justify-content:center; align-items:center;" onclick="closeLightbox()">
+          <img id="lightbox-img" src="" style="max-width:90%; max-height:90%;" />
+        </div>
+        <script>
+          function openLightbox(src) {
+            document.getElementById("lightbox-img").src = src;
+            document.getElementById("lightbox").style.display = "flex";
+          }
+          function closeLightbox() {
+            document.getElementById("lightbox").style.display = "none";
+          }
+        </script>';
 
         echo '<p><strong>Ring Size:</strong> ' . get_field('ring_size') . '</p>';
         echo '<p><strong>Plating Type:</strong> ' . get_field('plating_type') . '</p>';
