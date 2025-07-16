@@ -3,6 +3,18 @@ add_action('wp_enqueue_scripts', function() {
     wp_enqueue_style('twentytwentyfive-style', get_template_directory_uri() . '/style.css');
 });
 
+add_action('admin_menu', function () {
+    add_menu_page(
+        'Tasks',
+        'Tasks',
+        'edit_posts',
+        'edit.php?post_type=task',
+        '',
+        'dashicons-list-view',
+        6
+    );
+});
+
 add_action('wp_head', 'acf_form_head', 1);
 
 function custom_login_redirect($redirect_to, $request, $user) {
@@ -59,40 +71,119 @@ add_action('admin_init', function () {
 });
 
 
-add_action('the_content', 'show_manager_form_on_dashboard');
-
 function show_manager_form_on_dashboard($content) {
-    if ( is_page('manager-dashboard') ) {
+    if (is_page('manager-dashboard') && (current_user_can('administrator') || current_user_can('manager'))) {
         ob_start();
 
-        if ( current_user_can( 'administrator' ) || current_user_can( 'manager' ) ) {
-            // Load ACF form assets (important!)
-            acf_form_head();
+       echo '<h1>Manager Dashboard</h1>';
+        echo '<div style="margin-bottom: 20px;">';
+        echo '<a href="' . site_url('/create-task') . '" class="button" style="margin-right:10px;">Create New Task</a>';
+        echo '<a href="' . site_url('/all-tasks') . '" class="button">View All Tasks</a>';
+        echo '</div>';
 
-            // Optional: Add a message or wrapper
-            echo '<h2>Create a New Task</h2>';
-
-            // Show the form
-            acf_form([
-                'post_id' => 'new_post',
-                'post_title' => true,
-                'post_content' => false,
-                'new_post' => [
-                    'post_type' => 'task',
-                    'post_status' => 'publish'
-                ],
-                // 'fields' => ['store_name'],
-                'submit_value' => 'Create Task'
-            ]);
-        } else {
-            echo '<p>You do not have permission to access this page.</p>';
-        }
-
-        return ob_get_clean(); // Replace the default content with form
+        return ob_get_clean();
     }
 
-    return $content; // Return normal content for other pages
+    return $content;
 }
+add_filter('the_content', 'show_manager_form_on_dashboard');
+function show_manager_task_form($content) {
+    if (is_page('create-task') && (current_user_can('administrator') || current_user_can('manager'))) {
+        ob_start();
+
+        echo '<h2>Create a New Task</h2>';
+        echo '<nav style="font-size:14px; color:#666;">
+             <span style="color:#999;">&#8592;</span>
+                <a href="javascript:history.back()" style="color:#666; text-decoration:none;" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">
+                    Go Back
+                </a>
+              </nav>';
+        acf_form([
+            'post_id' => 'new_post',
+            'post_title' => true,
+            'post_content' => false,
+            'new_post' => [
+                'post_type' => 'task',
+                'post_status' => 'publish'
+            ],
+            'submit_value' => 'Create Task'
+        ]);
+
+        return ob_get_clean();
+    }
+
+    return $content;
+}
+add_filter('the_content', 'show_manager_task_form');
+
+function show_all_tasks_for_manager($content) {
+    if (is_page('all-tasks') && (current_user_can('administrator') || current_user_can('manager'))) {
+        ob_start();
+
+        echo '<h2>All Tasks</h2>';
+        echo '<nav style="font-size:14px; color:#666;">
+                <span style="color:#999;">&#8592;</span>
+                <a href="javascript:history.back()" style="color:#666; text-decoration:none;" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">
+                    Go Back
+                </a>
+              </nav>';
+
+        $statuses = ['In-house', 'Worker', 'Testing', 'Done'];
+
+        foreach ($statuses as $status) {
+            $query = new WP_Query([
+                'post_type' => 'task',
+                'post_status' => 'publish',
+                'posts_per_page' => -1,
+                'meta_query' => [[
+                    'key' => 'status',
+                    'value' => $status,
+                    'compare' => '='
+                ]]
+            ]);
+
+           if ($query->have_posts()) {
+                echo "<h3>$status</h3><ul style='padding-left:0;'>";
+            
+                while ($query->have_posts()) {
+                    $query->the_post();
+                    $thumb = get_field('item_photo');
+                    $thumb_url = $thumb ? esc_url($thumb['sizes']['thumbnail']) : '';
+                    $task_status = get_field('status');
+            
+                    echo '<li style="margin-bottom:15px; list-style:none; display:flex; align-items:center;">';
+            
+                    if ($thumb_url) {
+                        echo '<img src="' . $thumb_url . '" alt="" style="width:50px; height:50px; object-fit:cover; margin-right:10px; border-radius:4px;" />';
+                    }
+            
+                    echo '<div>';
+                    echo '<a href="' . get_permalink() . '" style="text-decoration:none; color:#333; font-size:14px;">' . wp_trim_words(get_the_title(), 10, '...') . '</a>';
+                    echo '<div style="font-size:12px; color:#888;">Status: ' . esc_html($task_status) . '</div>';
+                    echo '</div>';
+            
+                    echo '</li>';
+                }
+            
+                echo '</ul>';
+            }
+
+            wp_reset_postdata();
+        }
+
+        return ob_get_clean();
+    }
+
+    return $content;
+}
+add_filter('the_content', 'show_all_tasks_for_manager');
+
+add_action('init', function () {
+    if (is_page(['create-task', 'all-tasks']) || is_singular('task')) {
+        acf_form_head();
+    }
+});
+
 add_action('init', function() {
     if (is_page() || is_singular('task')) {
         acf_form_head();
@@ -151,14 +242,30 @@ function show_worker_tasks_on_dashboard($content) {
             $query = new WP_Query($args);
 
             if ($query->have_posts()) {
-                echo "<h3>$status</h3><ul>";
-                while ($query->have_posts()) {
-                    $query->the_post();
-                    echo '<li><a href="' . get_permalink() . '">' . get_the_title() . '</a></li>';
+            echo "<h3>$status</h3><ul style='padding-left:0;'>";
+        
+            while ($query->have_posts()) {
+                $query->the_post();
+                $thumb = get_field('item_photo');
+                $thumb_url = $thumb ? esc_url($thumb['sizes']['thumbnail']) : '';
+                $ring_size = get_field('ring_size');
+        
+                echo '<li style="margin-bottom:15px; list-style:none; display:flex; align-items:center;">';
+        
+                if ($thumb_url) {
+                    echo '<img src="' . $thumb_url . '" alt="" style="width:50px; height:50px; object-fit:cover; margin-right:10px; border-radius:4px;" />';
                 }
-                echo '</ul>';
+        
+                echo '<div>';
+                echo '<a href="' . get_permalink() . '" style="text-decoration:none; color:#333; font-size:14px;">' . wp_trim_words(get_the_title(), 10, '...') . '</a>';
+                echo '<div style="font-size:12px; color:#888;">Ring Size: ' . esc_html($ring_size) . '</div>';
+                echo '</div>';
+        
+                echo '</li>';
             }
-
+        
+            echo '</ul>';
+        }
             wp_reset_postdata();
         }
 
@@ -174,6 +281,12 @@ function show_task_details_page($content) {
     if (is_singular('task')) {
         ob_start();
 
+        echo '<nav style="font-size:14px; color:#666;">
+              <span style="color:#999;">&#8592;</span>
+              <a href="javascript:history.back()" style="color:#666; text-decoration:none;" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">
+                Go Back
+                </a>
+              </nav>';
         echo '<div style="border:1px solid #ccc;padding:20px;">';
         echo '<h2>' . get_the_title() . '</h2>';
 
