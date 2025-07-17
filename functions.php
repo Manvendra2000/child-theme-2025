@@ -3,16 +3,19 @@ add_action('wp_enqueue_scripts', function() {
     wp_enqueue_style('twentytwentyfive-style', get_template_directory_uri() . '/style.css');
 });
 
-add_action('admin_menu', function () {
-    add_menu_page(
-        'Tasks',
-        'Tasks',
-        'edit_posts',
-        'edit.php?post_type=task',
-        '',
-        'dashicons-list-view',
-        6
-    );
+// no need of cpt ui and added in main menu, now use ACF
+add_action('init', function () {
+    register_post_type('product', [
+        'labels' => [
+            'name' => 'Products',
+            'singular_name' => 'Product'
+        ],
+        'public' => true,
+        'has_archive' => true,
+        'menu_icon' => 'dashicons-cart',
+        'supports' => ['title', 'thumbnail', 'editor'],
+        'show_in_rest' => true,
+    ]);
 });
 
 add_action('wp_head', 'acf_form_head', 1);
@@ -78,7 +81,8 @@ function show_manager_form_on_dashboard($content) {
        echo '<h1>Manager Dashboard</h1>';
         echo '<div style="margin-bottom: 20px;">';
         echo '<a href="' . site_url('/create-task') . '" class="button" style="margin-right:10px;">Create New Task</a>';
-        echo '<a href="' . site_url('/all-tasks') . '" class="button">View All Tasks</a>';
+        echo '<a href="' . site_url('/all-tasks') . '" class="button" style="margin-right:10px;">View All Tasks</a>';
+        echo '<a href="' . site_url('/product-listing') . '" class="button">Products List</a>';
         echo '</div>';
 
         return ob_get_clean();
@@ -87,9 +91,19 @@ function show_manager_form_on_dashboard($content) {
     return $content;
 }
 add_filter('the_content', 'show_manager_form_on_dashboard');
+
 function show_manager_task_form($content) {
     if (is_page('create-task') && (current_user_can('administrator') || current_user_can('manager'))) {
         ob_start();
+
+        // Prefill ACF image field from image URL
+        if (!empty($_GET['image'])) {
+            $image_url = esc_url_raw($_GET['image']);
+            $attachment_id = attachment_url_to_postid($image_url); // Converts URL to ID
+            if ($attachment_id) {
+                $_POST['acf']['item_photo'] = $attachment_id;
+            }
+        }
 
         echo '<h2>Create a New Task</h2>';
         echo '<nav style="font-size:14px; color:#666;">
@@ -98,6 +112,7 @@ function show_manager_task_form($content) {
                     Go Back
                 </a>
               </nav>';
+
         acf_form([
             'post_id' => 'new_post',
             'post_title' => true,
@@ -521,3 +536,118 @@ add_filter('rest_authentication_errors', function ($result) {
 function is_login_page() {
     return in_array($GLOBALS['pagenow'], ['wp-login.php', 'wp-register.php']);
 }
+
+
+
+// REST API for WooCommerce Products
+add_action('rest_api_init', function () {
+  register_rest_route('custom/v1', '/products', [
+    'methods' => 'GET',
+    'callback' => 'get_custom_products',
+  ]);
+});
+
+function get_custom_products($request) {
+  $search = sanitize_text_field($request['search']);
+  $category = sanitize_text_field($request['category']);
+
+  $args = [
+    'post_type' => 'product',
+    'posts_per_page' => -1,
+    's' => $search,
+    'tax_query' => [],
+  ];
+
+  if ($category) {
+    $args['tax_query'][] = [
+      'taxonomy' => 'product_cat',
+      'field' => 'slug',
+      'terms' => $category,
+    ];
+  }
+
+  $query = new WP_Query($args);
+  $products = [];
+
+  foreach ($query->posts as $p) {
+    $products[] = [
+      'id' => $p->ID,
+      'title' => get_the_title($p->ID),
+      'image' => get_the_post_thumbnail_url($p->ID, 'medium'),
+    ];
+  }
+
+  return $products;
+}
+
+// Shortcode to render product search/filter UI
+// Update the product browser shortcode to include category
+add_shortcode('product_browser', function () {
+    ob_start(); ?>
+    <div>
+        <input type="text" id="search" placeholder="Search..." style="padding:8px; margin-bottom:10px;">
+        <select id="category" style="padding:8px; margin-bottom:10px;">
+            <option value="">All Categories</option>
+            <?php 
+            $terms = get_terms(['taxonomy' => 'product_cat', 'hide_empty' => false]);
+            foreach ($terms as $term) {
+                echo '<option value="' . esc_attr($term->slug) . '">' . esc_html($term->name) . '</option>';
+            }
+            ?>
+        </select>
+        <div id="product-list" style="display: grid; gap: 15px; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); margin-top:20px;"></div>
+    </div>
+
+    <script>
+    async function loadProducts() {
+        const search = document.getElementById('search').value;
+        const category = document.getElementById('category').value;
+        const res = await fetch(`/wp-json/custom/v1/products?search=${encodeURIComponent(search)}&category=${encodeURIComponent(category)}`);
+        const products = await res.json();
+        const list = document.getElementById('product-list');
+        
+        list.innerHTML = products.map(p => `
+            <a href="/create-task?title=${encodeURIComponent(p.title)}&image=${encodeURIComponent(p.image)}&category=${encodeURIComponent(category)}" 
+               style="text-decoration:none; color:#333; display:block; background:#f9f9f9; padding:15px; border-radius:8px; transition:transform 0.2s;"
+               onmouseover="this.style.transform='translateY(-5px)'" 
+               onmouseout="this.style.transform='none'">
+                <img src="${p.image}" style="width:100%; height:150px; object-fit:contain; margin-bottom:10px; background:#fff; border-radius:4px;">
+                <div style="text-align:center; font-size:14px;">${p.title}</div>
+            </a>
+        `).join('');
+    }
+
+    // Debounce the search input
+    let debounceTimer;
+    document.getElementById('search').addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(loadProducts, 300);
+    });
+    
+    document.getElementById('category').addEventListener('change', loadProducts);
+    loadProducts();
+    </script>
+    <?php
+    return ob_get_clean();
+});
+
+add_filter('acf/load_field/name=item_photo', function($field) {
+    if (is_page('create-task') && isset($_GET['image'])) {
+        $image_url = esc_url_raw($_GET['image']);
+        $attachment_id = attachment_url_to_postid($image_url);
+
+        if ($attachment_id) {
+            $field['value'] = $attachment_id;
+        }
+    }
+    return $field;
+});
+
+// Add this to prefill the title
+add_filter('acf/prepare_field/name=_post_title', function($field) {
+    if (is_page('create-task') && isset($_GET['title'])) {
+        $field['value'] = sanitize_text_field($_GET['title']);
+    }
+    return $field;
+});
+
