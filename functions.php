@@ -631,9 +631,24 @@ add_shortcode('product_browser', function () {
     return ob_get_clean();
 });
 
+
+// to prefill the images
+// add_filter('acf/load_field/name=item_photo', function($field) {
+//     if (is_page('create-task') && isset($_GET['image'])) {
+//         $image_url = esc_url_raw($_GET['image']);
+//         $attachment_id = attachment_url_to_postid($image_url);
+
+//         if ($attachment_id) {
+//             $field['value'] = $attachment_id;
+//         }
+//     }
+//     return $field;
+// });
 add_filter('acf/load_field/name=item_photo', function($field) {
     if (is_page('create-task') && isset($_GET['image'])) {
         $image_url = esc_url_raw($_GET['image']);
+        $image_url = preg_replace('/-\d+x\d+(?=\.\w{3,4}$)/', '', $image_url); // Strip size
+
         $attachment_id = attachment_url_to_postid($image_url);
 
         if ($attachment_id) {
